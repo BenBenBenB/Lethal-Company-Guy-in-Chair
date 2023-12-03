@@ -1,0 +1,26 @@
+{
+  "name": "lethal-company-guy-in-chair",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ryan-Florida/Lethal-Company-Guy-in-Chair.git"
+  },
+  "author": "Ben Burton & Ryan Florida",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Ryan-Florida/Lethal-Company-Guy-in-Chair/issues"
+  },
+  "homepage": "https://github.com/Ryan-Florida/Lethal-Company-Guy-in-Chair#readme",
+  "dependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom"
+  }
+}
