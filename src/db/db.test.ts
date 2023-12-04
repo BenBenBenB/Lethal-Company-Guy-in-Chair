@@ -26,4 +26,14 @@ describe("Test db methods", () => {
 
     expect(result).toBe(expected);
   });
+
+  it("should get item by ID", () => {
+    const testKey = "hotkey:player1_hk";
+    const expected = "F3";
+
+    DB.write(testKey, expected);
+    const result = DB.get(testKey);
+
+    expect(result).toBe(expected);
+  });
 });

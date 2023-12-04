@@ -1,15 +1,17 @@
+import { HOTKEYS } from "./constants/hotkeys";
+import { MAX_PLAYERS } from "./constants/settings";
 import DB from "./db/db";
 import { DataBase } from "./types/db";
+import {
+  fetchHotkeyById,
+  getCheckboxId,
+  getHotkeyId,
+  getNameFieldId,
+  saveToClipboard,
+  toggleAllCheckboxes,
+} from "./utils/dom-helpers";
 
-const MAX_PLAYERS = 12;
-const IGNORE_PREFIX = "IGNOREDPLAYER:";
-const INITIAL_PLAYERS = ["Old Yeller", "murmuring.witch"];
-const HOTKEYS = ["F1", "F2"];
-
-const getNameFieldId = (index: number): string => `player${index}_name`;
-const getCheckboxId = (index: number): string => `player${index}_cb`;
-
-const setPlayerList = (nameArray: string[]) => {
+const setPlayerList = (nameArray: string[], DB: DataBase) => {
   nameArray.forEach((name: string, i: number) => {
     const textbox = <HTMLInputElement>(
       document.getElementById(getNameFieldId(i))
@@ -21,32 +23,11 @@ const setPlayerList = (nameArray: string[]) => {
     checkbox.checked = !!name.trim(); // Check the box if the name is not empty
   });
 
-  // TODO: Move this to db
-  localStorage.setItem("playerList", nameArray.join(","));
+  DB.write("playerList", nameArray.join(","));
 };
 
-const saveToClipboard = async () => {
-  const textToSave = Array.from({ length: MAX_PLAYERS }, (_, i): string => {
-    const checkbox = <HTMLInputElement>(
-      document.getElementById(getCheckboxId(i))
-    );
-    const playerName = (<HTMLInputElement>(
-      document.getElementById(getNameFieldId(i))
-    )).value.trim();
-    return (
-      playerName &&
-      (checkbox.checked ? playerName : `${IGNORE_PREFIX}${playerName}`)
-    );
-  })
-    .filter(Boolean)
-    .join("\n");
-
-  localStorage.setItem("playerList", textToSave.replace("\n", ","));
-
-  await navigator.clipboard.writeText(textToSave);
-};
-
-const createPlayerRow = (i: number): HTMLTableRowElement => {
+const createPlayerRow = (i: number, DB: DataBase): HTMLTableRowElement => {
+  const hotkey = fetchHotkeyById(i, DB);
   const row = document.createElement("tr");
   row.innerHTML = `
             <td>${i + 1}.</td>
@@ -54,17 +35,25 @@ const createPlayerRow = (i: number): HTMLTableRowElement => {
               i
             )}" title="Check to include in camera view."></td>
             <td><input type="text" id="${getNameFieldId(i)}"></td>
-            <td><b title="Hotkey for swapping to this player.">${
-              HOTKEYS[i] || ""
-            }</b></td>
+            <td><input id="${getHotkeyId(
+              i
+            )}" title="Hotkey for swapping to this player." value=${
+    hotkey ? hotkey : HOTKEYS[i] || ""
+  }></td>
         `;
   const checkbox = <HTMLInputElement>row.querySelector(`#${getCheckboxId(i)}`);
   const textbox = <HTMLInputElement>row.querySelector(`#${getNameFieldId(i)}`);
+  const hotkeyTextBox = <HTMLInputElement>(
+    row.querySelector(`#${getHotkeyId(i)}`)
+  );
 
-  checkbox.addEventListener("change", saveToClipboard);
+  checkbox.addEventListener("change", () => saveToClipboard(DB));
   textbox.addEventListener("keyup", async (event: KeyboardEvent) => {
     checkbox.checked = (<HTMLInputElement>event.target).value.trim() !== "";
-    await saveToClipboard();
+    await saveToClipboard(DB);
+  });
+  hotkeyTextBox.addEventListener("keyup", async (event: KeyboardEvent) => {
+    DB.write(getHotkeyId(i), (<HTMLInputElement>event.target).value);
   });
 
   // Uncheck the checkbox if the textbox is empty
@@ -75,71 +64,50 @@ const createPlayerRow = (i: number): HTMLTableRowElement => {
   return row;
 };
 
-const setUpList = async (playerList: string[] = []) => {
+const setUpList = async (DB: DataBase, playerList: string[] = []) => {
   const list = <HTMLTableElement>document.getElementById("player_table_body");
-  Array.from({ length: MAX_PLAYERS }, (_, i) => createPlayerRow(i)).forEach(
+  Array.from({ length: MAX_PLAYERS }, (_, i) => createPlayerRow(i, DB)).forEach(
     (row) => list.appendChild(row)
   );
-  setPlayerList(playerList);
-  await saveToClipboard();
+  setPlayerList(playerList, DB);
+  await saveToClipboard(DB);
 };
 
-const toggleAllCheckboxes = async (check: boolean): Promise<void> => {
-  Array.from({ length: MAX_PLAYERS }, (_, i) => {
-    const checkbox = <HTMLInputElement>(
-      document.getElementById(getCheckboxId(i))
-    );
-    const textbox = <HTMLInputElement>(
-      document.getElementById(getNameFieldId(i))
-    );
-    if (check) {
-      checkbox.checked = textbox.value.trim() !== "";
-    } else {
-      checkbox.checked = false;
-    }
-  });
-  await saveToClipboard();
-};
-
-const setUpButtons = () => {
+const setUpButtons = (DB: DataBase) => {
   (<HTMLInputElement>document.getElementById("cb_toggle_all")).addEventListener(
     "click",
     (event: MouseEvent) => {
-      toggleAllCheckboxes((<HTMLInputElement>event.target).checked);
+      toggleAllCheckboxes((<HTMLInputElement>event.target).checked, DB);
     }
   );
   (<HTMLButtonElement>(
     document.getElementById("btn_clear_names")
   )).addEventListener("click", () =>
-    setPlayerList(Array(MAX_PLAYERS).fill(""))
+    setPlayerList(Array(MAX_PLAYERS).fill(""), DB)
   );
   (<HTMLButtonElement>document.getElementById("btn_copy_to")).addEventListener(
     "click",
-    saveToClipboard
+    () => saveToClipboard(DB)
   );
 };
 
-const writeToCache = (key: string, write: unknown) => {};
-
 const main = (DB: DataBase) => {
   const { playerList } = DB.getAllData();
+  console.log(DB.getAllData());
 
   document.addEventListener("DOMContentLoaded", async () => {
-    if (playerList.length !== 0) {
-      await setUpList(playerList.split(","));
+    if (playerList.length === 0) {
+      await setUpList(DB);
     } else {
-      await setUpList();
+      await setUpList(DB, playerList.split(","));
     }
-    setUpButtons();
+    setUpButtons(DB);
   });
 };
 
 main(DB);
 
 export {
-  HOTKEYS,
-  INITIAL_PLAYERS,
-  MAX_PLAYERS,
   createPlayerRow,
   getCheckboxId,
   getNameFieldId,

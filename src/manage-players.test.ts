@@ -1,35 +1,21 @@
 import { generatePlayerRows } from "../tests/utils/manage-players.utils";
+import { HOTKEYS } from "./constants/hotkeys";
+import { MAX_PLAYERS } from "./constants/settings";
 import DB from "./db/db";
 import {
-  HOTKEYS,
-  INITIAL_PLAYERS,
-  MAX_PLAYERS,
   createPlayerRow,
-  getCheckboxId,
-  getNameFieldId,
   main,
-  saveToClipboard,
   setPlayerList,
   setUpButtons,
   setUpList,
-  toggleAllCheckboxes,
 } from "./manage-players";
+import {
+  getCheckboxId,
+  getHotkeyId,
+  getNameFieldId,
+} from "./utils/dom-helpers";
 
-describe("Tests for getting IDs", () => {
-  it("Should return name field IDs", () => {
-    const playerId = 0;
-    const expected = "player0_name";
-    const result = getNameFieldId(playerId);
-    expect(result).toBe(expected);
-  });
-
-  it("Should return checkbox ID", () => {
-    const playerId = 0;
-    const expected = "player0_cb";
-    const result = getCheckboxId(playerId);
-    expect(result).toBe(expected);
-  });
-});
+const INITIAL_PLAYERS = ["Old Yeller", "murmuring.witch"];
 
 describe("Test set players", () => {
   beforeEach(() => {
@@ -42,7 +28,7 @@ describe("Test set players", () => {
 
   it("Should generate player list", () => {
     const players = ["Ben", "Ryan", "Caleb", "Jeff", ""];
-    setPlayerList(players);
+    setPlayerList(players, DB);
     players.forEach((name, index) => {
       const textbox = <HTMLInputElement>(
         document.getElementById(`player${index}_name`)
@@ -53,33 +39,6 @@ describe("Test set players", () => {
       expect(textbox.value).toBe(name);
       expect(checkbox.value).toBe("on");
     });
-  });
-});
-
-describe("Save to clipboard", () => {
-  beforeEach(() => {
-    //@ts-ignore
-    global.navigator.clipboard = {
-      writeText: jest.fn().mockResolvedValue(undefined),
-    };
-    document.body.innerHTML = `
-      <div>
-      ${generatePlayerRows(12)}
-      </div>
-    `;
-    const players = ["Ben", "Ryan", "Caleb", "Jeff", "ignore me", ""];
-    setPlayerList(players);
-  });
-
-  it("should save values to clipboard", async () => {
-    const expected = "Ben\nRyan\nCaleb\nJeff\nIGNOREDPLAYER:ignore me";
-    const ignoredCheckbox = <HTMLInputElement>(
-      document.querySelector(`#${getCheckboxId(4)}`)
-    );
-    // Manually un-check checkbox for "ignore me" player
-    ignoredCheckbox.checked = false;
-    await saveToClipboard();
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expected);
   });
 });
 
@@ -95,12 +54,12 @@ describe("Test create player row", () => {
       </div>
     `;
     const players = ["Ben", "Ryan", "Caleb", "Jeff", ""];
-    setPlayerList(players);
+    setPlayerList(players, DB);
   });
 
   it("Should create player row with hotkey", () => {
     const rowIndex = 0;
-    const row = createPlayerRow(rowIndex);
+    const row = createPlayerRow(rowIndex, DB);
 
     expect(row.tagName).toBe("TR");
 
@@ -115,20 +74,24 @@ describe("Test create player row", () => {
 
     expect(checkbox.checked).toBe(false);
 
-    const hotkey = row?.querySelector("b")?.textContent;
+    const hotkey = (<HTMLInputElement>(
+      row.querySelector(`#${getHotkeyId(rowIndex)}`)
+    )).value;
     expect(hotkey).toBe(HOTKEYS[rowIndex]);
   });
 
   it("Should create player row with no hotkey", () => {
     const rowIndex = -1;
-    const row = createPlayerRow(rowIndex);
-    const hotkey = row?.querySelector("b")?.textContent;
+    const row = createPlayerRow(rowIndex, DB);
+    const hotkey = (<HTMLInputElement>(
+      row.querySelector(`#${getHotkeyId(rowIndex)}`)
+    )).value;
     expect(hotkey).toBe("");
   });
 
   it("Should check the checkbox when text is entered in the textbox", () => {
     const rowIndex = 0;
-    const row = createPlayerRow(rowIndex);
+    const row = createPlayerRow(rowIndex, DB);
     const checkbox = <HTMLInputElement>(
       row.querySelector(`#${getCheckboxId(rowIndex)}`)
     );
@@ -160,7 +123,7 @@ describe("Test setup list", () => {
 
   it("should populate the player list with the correct number of players", async () => {
     const expectedNames = INITIAL_PLAYERS.join("\n");
-    await setUpList(INITIAL_PLAYERS);
+    await setUpList(DB, INITIAL_PLAYERS);
 
     const list = <HTMLTableElement>document.getElementById("player_table_body");
 
@@ -170,52 +133,6 @@ describe("Test setup list", () => {
     }
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expectedNames);
-  });
-});
-
-describe("Test toggle all checkboxes", () => {
-  beforeEach(() => {
-    //@ts-ignore
-    global.navigator.clipboard = {
-      writeText: jest.fn().mockResolvedValue(undefined),
-    };
-    document.body.innerHTML = `
-      <div>
-      ${generatePlayerRows(MAX_PLAYERS)}
-      </div>
-    `;
-    const players = ["Ben", "Ryan", "Caleb", "Jeff", ""];
-    setPlayerList(players);
-  });
-
-  it("Should Toggle All Checkboxes on and save results to clipboard", async () => {
-    const expected = "Ben\nRyan\nCaleb\nJeff";
-    await toggleAllCheckboxes(true);
-    for (let i = 0; i < 4; i++) {
-      const checkbox = <HTMLInputElement>(
-        document.querySelector(`#${getCheckboxId(i)}`)
-      );
-      expect(checkbox.checked).toBe(true);
-    }
-    const checkbox = <HTMLInputElement>(
-      document.querySelector(`#${getCheckboxId(5)}`)
-    );
-    // The 5th entry in the `players` array is blank
-    expect(checkbox.checked).toBe(false);
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expected);
-  });
-
-  it("Should Toggle All Checkboxes off and save results to clipboard", async () => {
-    const expected =
-      "IGNOREDPLAYER:Ben\nIGNOREDPLAYER:Ryan\nIGNOREDPLAYER:Caleb\nIGNOREDPLAYER:Jeff";
-    await toggleAllCheckboxes(false);
-    for (let i = 0; i < 5; i++) {
-      const checkbox = <HTMLInputElement>(
-        document.querySelector(`#${getCheckboxId(i)}`)
-      );
-      expect(checkbox.checked).toBe(false);
-    }
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expected);
   });
 });
 
@@ -231,8 +148,8 @@ describe("Test setup buttons", () => {
             <thead>
                 <th>#</th>
                 <th><input type="checkbox" id="cb_toggle_all" checked="true" title="Toggle All" /></th>
-                <th>Names</th>
-                <th>Key</th>
+                <th>Player Name</th>
+                <th>HotKey Assignment</th>
             </thead>
             <tbody id="player_table_body">
             ${generatePlayerRows(MAX_PLAYERS)}
@@ -243,11 +160,11 @@ describe("Test setup buttons", () => {
     <button type="button" id="btn_clear_names">Clear All</button>
     `;
     const players = ["Ben", "Ryan", "Caleb", "Jeff", ""];
-    setPlayerList(players);
+    setPlayerList(players, DB);
   });
 
   it('should provision "Toggle All" checkbox with event', () => {
-    setUpButtons();
+    setUpButtons(DB);
     const toggleAllButton = <HTMLInputElement>(
       document.querySelector("#cb_toggle_all")
     );
@@ -264,7 +181,7 @@ describe("Test setup buttons", () => {
   });
 
   it('should provision "Clear Names" button with event', () => {
-    setUpButtons();
+    setUpButtons(DB);
     for (let i = 0; i < 4; i++) {
       const input = <HTMLInputElement>(
         document.querySelector(`#${getNameFieldId(i)}`)
@@ -286,7 +203,7 @@ describe("Test setup buttons", () => {
 
   it('should provision "Copy to Clipboard" button with event', () => {
     const expected = "Ben\nRyan\nCaleb\nJeff";
-    setUpButtons();
+    setUpButtons(DB);
     const copyToClipboardButton = <HTMLButtonElement>(
       document.querySelector("#btn_copy_to")
     );

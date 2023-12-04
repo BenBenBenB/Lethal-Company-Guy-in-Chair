@@ -8,7 +8,10 @@ const write = (key: string, value: string) => {
   localStorage.setItem(key, value);
 };
 
+const get = (key: string): string | null => localStorage.getItem(key);
+
 const DB = {
+  get,
   getAllData,
   write,
 } as DataBase;
