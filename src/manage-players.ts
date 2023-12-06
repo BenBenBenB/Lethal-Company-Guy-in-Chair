@@ -1,9 +1,11 @@
 import { HOTKEYS } from "./constants/hotkeys";
 import { MAX_PLAYERS } from "./constants/settings";
+import playerListContext, { type PlayerListContext } from "./context/player";
 import DB from "./db/db";
 import { DataBase } from "./types/db";
+import { HotKeys } from "./types/hotkeys";
+import { Player } from "./types/player";
 import {
-  fetchHotkeyById,
   getCheckboxId,
   getHotkeyId,
   getNameFieldId,
@@ -11,101 +13,142 @@ import {
   toggleAllCheckboxes,
 } from "./utils/dom-helpers";
 
-const setPlayerList = (nameArray: string[], DB: DataBase) => {
-  nameArray.forEach((name: string, i: number) => {
+const setPlayerList = (
+  playerList: Player[],
+  playerListContext: PlayerListContext
+) => {
+  playerList.forEach((player: Player) => {
     const textbox = <HTMLInputElement>(
-      document.getElementById(getNameFieldId(i))
+      document.getElementById(getNameFieldId(player.rowIndex))
     );
     const checkbox = <HTMLInputElement>(
-      document.getElementById(getCheckboxId(i))
+      document.getElementById(getCheckboxId(player.rowIndex))
     );
-    textbox.value = name || "";
-    checkbox.checked = !!name.trim(); // Check the box if the name is not empty
+    textbox.value = player.name || "";
+    checkbox.checked = player.checked;
   });
 
-  DB.write("playerList", nameArray.join(","));
+  playerListContext.setPlayerList(playerList);
 };
 
-const createPlayerRow = (i: number, DB: DataBase): HTMLTableRowElement => {
-  const hotkey = fetchHotkeyById(i, DB);
+const createPlayerRow = (
+  player: Player,
+  DB: DataBase,
+  playerListContext: PlayerListContext
+): HTMLTableRowElement => {
+  const { hotkey, rowIndex } = player;
   const row = document.createElement("tr");
   row.innerHTML = `
-            <td>${i + 1}.</td>
+            <td>${rowIndex + 1}.</td>
             <td><input type="checkbox" id="${getCheckboxId(
-              i
-            )}" title="Check to include in camera view."></td>
-            <td><input type="text" id="${getNameFieldId(i)}"></td>
+              rowIndex
+            )}" title="Check to include in camera view." checked=${
+    player.checked
+  }></td>
+            <td><input type="text" id="${getNameFieldId(rowIndex)}"></td>
             <td><input id="${getHotkeyId(
-              i
+              rowIndex
             )}" title="Hotkey for swapping to this player." value=${
-    hotkey ? hotkey : HOTKEYS[i] || ""
+    hotkey ?? (HOTKEYS[rowIndex] || "")
   }></td>
         `;
-  const checkbox = <HTMLInputElement>row.querySelector(`#${getCheckboxId(i)}`);
-  const textbox = <HTMLInputElement>row.querySelector(`#${getNameFieldId(i)}`);
+  const checkbox = <HTMLInputElement>(
+    row.querySelector(`#${getCheckboxId(rowIndex)}`)
+  );
+  const textbox = <HTMLInputElement>(
+    row.querySelector(`#${getNameFieldId(rowIndex)}`)
+  );
   const hotkeyTextBox = <HTMLInputElement>(
-    row.querySelector(`#${getHotkeyId(i)}`)
+    row.querySelector(`#${getHotkeyId(rowIndex)}`)
   );
 
-  checkbox.addEventListener("change", () => saveToClipboard(DB));
-  textbox.addEventListener("keyup", async (event: KeyboardEvent) => {
-    checkbox.checked = (<HTMLInputElement>event.target).value.trim() !== "";
-    await saveToClipboard(DB);
+  checkbox.addEventListener("change", () => {
+    playerListContext.set({
+      ...player,
+      checked: checkbox.checked,
+    });
   });
-  hotkeyTextBox.addEventListener("keyup", async (event: KeyboardEvent) => {
-    DB.write(getHotkeyId(i), (<HTMLInputElement>event.target).value);
+  textbox.addEventListener("keyup", (event: KeyboardEvent) => {
+    const name = (<HTMLInputElement>event.target).value;
+    checkbox.checked = name.trim() !== "";
+    playerListContext.set({
+      ...player,
+      name,
+      checked: checkbox.checked,
+    });
   });
-
-  // Uncheck the checkbox if the textbox is empty
-  if (!textbox.value.trim()) {
-    checkbox.checked = false;
-  }
+  hotkeyTextBox.addEventListener("keyup", (event: KeyboardEvent) => {
+    playerListContext.set({
+      ...player,
+      hotkey: (<HTMLInputElement>event.target).value as HotKeys,
+    });
+  });
 
   return row;
 };
 
-const setUpList = async (DB: DataBase, playerList: string[] = []) => {
+const setUpList = async (
+  DB: DataBase,
+  playerListContext: PlayerListContext
+) => {
   const list = <HTMLTableElement>document.getElementById("player_table_body");
-  Array.from({ length: MAX_PLAYERS }, (_, i) => createPlayerRow(i, DB)).forEach(
-    (row) => list.appendChild(row)
+  const playerList = playerListContext.playerList();
+  playerList.forEach((player: Player) =>
+    list.appendChild(createPlayerRow(player, DB, playerListContext))
   );
-  setPlayerList(playerList, DB);
-  await saveToClipboard(DB);
+
+  // Finish setting other rows up
+  for (let i = playerList.length; i < MAX_PLAYERS; i++) {
+    list.appendChild(
+      createPlayerRow(
+        { name: "", rowIndex: i, checked: false },
+        DB,
+        playerListContext
+      )
+    );
+  }
+
+  setPlayerList(playerList, playerListContext);
+  await saveToClipboard(playerListContext);
 };
 
-const setUpButtons = (DB: DataBase) => {
+const setUpButtons = (DB: DataBase, playerListContext: PlayerListContext) => {
   (<HTMLInputElement>document.getElementById("cb_toggle_all")).addEventListener(
     "click",
     (event: MouseEvent) => {
-      toggleAllCheckboxes((<HTMLInputElement>event.target).checked, DB);
+      toggleAllCheckboxes(
+        (<HTMLInputElement>event.target).checked,
+        playerListContext
+      );
     }
   );
   (<HTMLButtonElement>(
     document.getElementById("btn_clear_names")
   )).addEventListener("click", () =>
-    setPlayerList(Array(MAX_PLAYERS).fill(""), DB)
+    setPlayerList(
+      Array(MAX_PLAYERS).fill((index: number) => ({
+        name: "",
+        rowIndex: index,
+      })),
+      playerListContext
+    )
   );
   (<HTMLButtonElement>document.getElementById("btn_copy_to")).addEventListener(
     "click",
-    () => saveToClipboard(DB)
+    () => saveToClipboard(playerListContext)
   );
 };
 
-const main = (DB: DataBase) => {
-  const { playerList } = DB.getAllData();
-  console.log(DB.getAllData());
+const main = (db: DataBase, playerListContext: PlayerListContext) => {
+  playerListContext.subscribe(() => saveToClipboard(playerListContext));
 
   document.addEventListener("DOMContentLoaded", async () => {
-    if (playerList.length === 0) {
-      await setUpList(DB);
-    } else {
-      await setUpList(DB, playerList.split(","));
-    }
-    setUpButtons(DB);
+    await setUpList(db, playerListContext);
+    setUpButtons(db, playerListContext);
   });
 };
 
-main(DB);
+main(DB, playerListContext);
 
 export {
   createPlayerRow,
