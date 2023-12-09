@@ -1,8 +1,8 @@
 module.exports = function (wallaby) {
   return {
-    files: ["js/**/*.js", "!js/**/*.test.js"],
+    files: ["src/**/*.ts", "!src/**/*.test.ts"],
 
-    tests: ["js/**/*.test.js"],
+    tests: ["src/**/*.test.ts"],
 
     env: {
       type: "browser",
