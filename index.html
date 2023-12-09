@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Lethal Company Cams UI</title>
+    <link rel="stylesheet" type="text/css" href="css/main.css">
+    <script type="module" src="dist/manage-players.js"></script>
+</head>
+
+<body>
+    <h3>Guy in Chair Controls</h3>
+    <p>Updating any row automatically populates your clipboard.</p>
+    <p>The AHK script (see Setup Instructions) will read names from your clipboard.</p>
+
+    <div>
+        <table id="player_list">
+            <thead>
+                <th>#</th>
+                <th><input type="checkbox" id="cb_toggle_all" checked="true" title="Toggle All" /></th>
+                <th>Player Name</th>
+                <th>HotKey Assignment</th>
+            </thead>
+            <tbody id="player_table_body" />
+        </table>
+    </div>
+    <button type="button" id="btn_copy_to">Copy to Clipboard</button>
+    <button type="button" id="btn_clear_names">Clear All</button>
+
+    <h4>Hotkeys</h4>
+    <ul>
+        <li>Toggle the map view on and off in the terminal.
+            <ul>
+                <li><b>=</b>
+                <li>Middle mouse button
+            </ul>
+        </li>
+        <li>To cycle through all checked players in order, use any of these:
+            <ul>
+                <li>[ and ]
+                <li>Mouse side buttons (i.e. browser back and forward)
+                <li>Mouse wheel left/right
+            </ul>
+        </li>
+        <li>F5 through F8 are bound to the first four players, respectively.</li>
+    </ul>
+
+    </p>
+    <h4>Setup Instructions</h4>
+    <ol>
+        <li>Download and install <a href="https://www.autohotkey.com/">AutoHotKey (v2)</a>.</li>
+        <li>Download and run <a id="script_download" href="ahk/player_swapper.ahk" download="ahk/player_swapper.ahk">player_swapper.ahk</a>.</li>
+        <li>Teleport your <s>friends</s> coworkers out if they are spinning.</li>
+        <li>Stop the script with <i>right click > Exit</i> on the Green H icon in the system tray.</li>
+    </ol>
+    <footer>
+        <p>Written™ by Ben® 2023©.</p>
+    </footer>
+</body>
+
+</html>

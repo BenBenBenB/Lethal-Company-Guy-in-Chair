@@ -1,0 +1,11 @@
+To run this project:
+
+1. `nvm use` to source appropriate version of Node.
+    - This should only be required **once per terminal session** and _only if_ you're not using **Node v18.17.1**.
+2. `npm i` to install all necessary dependencies.
+    - This should only need to be performed **once**
+3. `npm start` to start up the server
+
+
+If you want to run tests (without Wallaby):
+`npm test`
