@@ -6,5 +6,6 @@ const config: Config.InitialOptions = {
     "^.+\\.tsx?$": "ts-jest",
   },
   testEnvironment: "jsdom",
+  setupFilesAfterEnv: ["<rootDir>/tests/mocks/local-storage.ts"],
 };
 export default config;

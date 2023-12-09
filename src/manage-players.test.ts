@@ -1,104 +1,91 @@
+import { localStorageMock } from "../tests/mocks/local-storage";
+import { mockPlayers } from "../tests/mocks/players";
 import { generatePlayerRows } from "../tests/utils/manage-players.utils";
-import { HOTKEYS } from "./constants/hotkeys";
 import { MAX_PLAYERS } from "./constants/settings";
+import { PlayerListContext } from "./context/player";
 import DB from "./db/db";
 import {
   createPlayerRow,
+  initSubscriptions,
   main,
-  setPlayerList,
   setUpButtons,
   setUpList,
 } from "./manage-players";
+import { Player } from "./types/player";
 import {
   getCheckboxId,
   getHotkeyId,
   getNameFieldId,
+  getRowId,
 } from "./utils/dom-helpers";
 
-const INITIAL_PLAYERS = ["Old Yeller", "murmuring.witch"];
-
-describe("Test set players", () => {
-  beforeEach(() => {
-    document.body.innerHTML = `
-      <div>
-      ${generatePlayerRows(5)}
-      </div>
-    `;
-  });
-
-  it("Should generate player list", () => {
-    const players = ["Ben", "Ryan", "Caleb", "Jeff", ""];
-    setPlayerList(players, DB);
-    players.forEach((name, index) => {
-      const textbox = <HTMLInputElement>(
-        document.getElementById(`player${index}_name`)
-      );
-      const checkbox = <HTMLInputElement>(
-        document.getElementById(`player${index}_cb`)
-      );
-      expect(textbox.value).toBe(name);
-      expect(checkbox.value).toBe("on");
-    });
-  });
-});
-
 describe("Test create player row", () => {
+  let playerContext: PlayerListContext;
   beforeEach(() => {
+    playerContext = PlayerListContext.getInstance(DB);
+
     //@ts-ignore
     global.navigator.clipboard = {
       writeText: jest.fn().mockResolvedValue(undefined),
     };
+    playerContext.setPlayerList(mockPlayers);
     document.body.innerHTML = `
-      <div>
-      ${generatePlayerRows(12)}
-      </div>
+      <table>
+          <tbody id="player_table_body"></tbody>
+      </table>
     `;
-    const players = ["Ben", "Ryan", "Caleb", "Jeff", ""];
-    setPlayerList(players, DB);
+  });
+  afterEach(() => {
+    playerContext.resetState();
+    localStorageMock.clear();
   });
 
   it("Should create player row with hotkey", () => {
-    const rowIndex = 0;
-    const row = createPlayerRow(rowIndex, DB);
+    const player = mockPlayers[0];
+    const row = createPlayerRow(player);
 
     expect(row.tagName).toBe("TR");
 
     const checkbox = <HTMLInputElement>(
-      row.querySelector(`#${getCheckboxId(rowIndex)}`)
+      row.querySelector(`#${getCheckboxId(player.rowIndex)}`)
     );
     const textbox = <HTMLInputElement>(
-      row.querySelector(`#${getNameFieldId(rowIndex)}`)
+      row.querySelector(`#${getNameFieldId(player.rowIndex)}`)
     );
     expect(checkbox).not.toBeNull();
     expect(textbox).not.toBeNull();
 
-    expect(checkbox.checked).toBe(false);
+    expect(checkbox.checked).toBe(player.checked);
 
     const hotkey = (<HTMLInputElement>(
-      row.querySelector(`#${getHotkeyId(rowIndex)}`)
+      row.querySelector(`#${getHotkeyId(player.rowIndex)}`)
     )).value;
-    expect(hotkey).toBe(HOTKEYS[rowIndex]);
+    expect(hotkey).toBe(player.hotkey);
   });
 
   it("Should create player row with no hotkey", () => {
-    const rowIndex = -1;
-    const row = createPlayerRow(rowIndex, DB);
+    const player = mockPlayers[3];
+    const row = createPlayerRow(player);
     const hotkey = (<HTMLInputElement>(
-      row.querySelector(`#${getHotkeyId(rowIndex)}`)
+      row.querySelector(`#${getHotkeyId(player.rowIndex)}`)
     )).value;
     expect(hotkey).toBe("");
   });
 
   it("Should check the checkbox when text is entered in the textbox", () => {
-    const rowIndex = 0;
-    const row = createPlayerRow(rowIndex, DB);
+    const player = mockPlayers[4];
+    initSubscriptions(playerContext);
+    setUpList(playerContext);
+    const row = <HTMLTableRowElement>(
+      document.getElementById(getRowId(player.rowIndex))
+    );
     const checkbox = <HTMLInputElement>(
-      row.querySelector(`#${getCheckboxId(rowIndex)}`)
+      row.querySelector(`#${getCheckboxId(player.rowIndex)}`)
     );
     const textbox = <HTMLInputElement>(
-      row.querySelector(`#${getNameFieldId(rowIndex)}`)
+      row.querySelector(`#${getNameFieldId(player.rowIndex)}`)
     );
-    const expected = "Ben\nRyan\nCaleb\nJeff";
+    const expected = "Ben\nRyan\nCaleb\nJeff\nPlayer Name";
 
     textbox.value = "Player Name";
     textbox.dispatchEvent(new Event("keyup"));
@@ -109,7 +96,9 @@ describe("Test create player row", () => {
 });
 
 describe("Test setup list", () => {
+  let playerContext: PlayerListContext;
   beforeEach(() => {
+    playerContext = PlayerListContext.getInstance(DB);
     document.body.innerHTML = `
         <table>
             <tbody id="player_table_body"></tbody>
@@ -119,11 +108,15 @@ describe("Test setup list", () => {
     global.navigator.clipboard = {
       writeText: jest.fn().mockResolvedValue(undefined),
     };
+    playerContext.setPlayerList(mockPlayers);
+  });
+  afterEach(() => {
+    playerContext.resetState();
+    localStorageMock.clear();
   });
 
-  it("should populate the player list with the correct number of players", async () => {
-    const expectedNames = INITIAL_PLAYERS.join("\n");
-    await setUpList(DB, INITIAL_PLAYERS);
+  it("should populate the player list with the correct number of players", () => {
+    setUpList(playerContext);
 
     const list = <HTMLTableElement>document.getElementById("player_table_body");
 
@@ -131,17 +124,18 @@ describe("Test setup list", () => {
     for (let i = 0; i < MAX_PLAYERS; i++) {
       expect(list.querySelector(`#${getNameFieldId(i)}`)).not.toBeNull();
     }
-
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expectedNames);
   });
 });
 
 describe("Test setup buttons", () => {
+  let playerContext: PlayerListContext;
   beforeEach(() => {
+    playerContext = PlayerListContext.getInstance(DB);
     //@ts-ignore
     global.navigator.clipboard = {
       writeText: jest.fn().mockResolvedValue(undefined),
     };
+    playerContext.setPlayerList(mockPlayers);
     document.body.innerHTML = `
     <div>
         <table id="player_list">
@@ -152,19 +146,22 @@ describe("Test setup buttons", () => {
                 <th>HotKey Assignment</th>
             </thead>
             <tbody id="player_table_body">
-            ${generatePlayerRows(MAX_PLAYERS)}
+            ${generatePlayerRows(playerContext.playerList())}
             </tbody>
         </table>
     </div>
     <button type="button" id="btn_copy_to">Copy to Clipboard</button>
     <button type="button" id="btn_clear_names">Clear All</button>
     `;
-    const players = ["Ben", "Ryan", "Caleb", "Jeff", ""];
-    setPlayerList(players, DB);
+  });
+
+  afterEach(() => {
+    localStorageMock.clear();
+    playerContext.resetState();
   });
 
   it('should provision "Toggle All" checkbox with event', () => {
-    setUpButtons(DB);
+    setUpButtons(playerContext);
     const toggleAllButton = <HTMLInputElement>(
       document.querySelector("#cb_toggle_all")
     );
@@ -181,29 +178,34 @@ describe("Test setup buttons", () => {
   });
 
   it('should provision "Clear Names" button with event', () => {
-    setUpButtons(DB);
-    for (let i = 0; i < 4; i++) {
+    setUpButtons(playerContext);
+
+    playerContext.playerList().forEach((player: Player) => {
       const input = <HTMLInputElement>(
-        document.querySelector(`#${getNameFieldId(i)}`)
+        document.querySelector(`#${getNameFieldId(player.rowIndex)}`)
       );
-      // First four names shouldn't be blank
-      expect(input.value).not.toBe("");
-    }
+      if (player.name !== "") {
+        expect(input.value).not.toBe("");
+      }
+    });
+
     const clearNamesButton = <HTMLButtonElement>(
       document.querySelector("#btn_clear_names")
     );
+
     clearNamesButton.click();
-    for (let i = 0; i < MAX_PLAYERS; i++) {
+
+    playerContext.playerList().forEach((player: Player) => {
       const input = <HTMLInputElement>(
-        document.querySelector(`#${getNameFieldId(i)}`)
+        document.querySelector(`#${getNameFieldId(player.rowIndex)}`)
       );
       expect(input.value).toBe("");
-    }
+    });
   });
 
   it('should provision "Copy to Clipboard" button with event', () => {
     const expected = "Ben\nRyan\nCaleb\nJeff";
-    setUpButtons(DB);
+    setUpButtons(playerContext);
     const copyToClipboardButton = <HTMLButtonElement>(
       document.querySelector("#btn_copy_to")
     );
@@ -213,12 +215,39 @@ describe("Test setup buttons", () => {
 });
 
 describe("Test main", () => {
-  it("should setup the player list and buttons", () => {
+  let playerContext: PlayerListContext;
+  beforeEach(() => {
+    playerContext = PlayerListContext.getInstance(DB);
+  });
+  afterEach(() => {
+    playerContext.resetState();
+    localStorageMock.clear();
+  });
+
+  it("should setup the player list and buttons and activate subscribers", () => {
     const addEventListenerSpy = jest
       .spyOn(document, "addEventListener")
       .mockImplementation(() => {});
-    main(DB);
+    expect(playerContext.getSubscribers().length).toBe(0);
+    main(playerContext);
 
     expect(addEventListenerSpy).toHaveBeenCalled();
+    expect(playerContext.getSubscribers().length).not.toBe(0);
+  });
+});
+
+describe("Test initializing subscribers", () => {
+  let playerContext: PlayerListContext;
+  beforeEach(() => {
+    playerContext = PlayerListContext.getInstance(DB);
+  });
+  afterEach(() => {
+    playerContext.resetState();
+    localStorageMock.clear();
+  });
+  it("should setup the player list and buttons and activate subscribers", () => {
+    expect(playerContext.getSubscribers().length).toBe(0);
+    initSubscriptions(playerContext);
+    expect(playerContext.getSubscribers().length).not.toBe(0);
   });
 });

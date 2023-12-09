@@ -6,18 +6,13 @@ import { MAX_PLAYERS } from "../constants/settings";
 import DB from "../db/db";
 import { DataBase } from "../types/db";
 import { Player } from "../types/player";
-
-type Listener = () => void;
+import { Subscriber } from "../types/subscriber";
 
 export class PlayerListContext {
-  private localStorageKey = "playerList2";
+  private localStorageKey = "playerList";
   private static instance: PlayerListContext;
-  private data: Player[] = Array.from({ length: MAX_PLAYERS }, (_, index) => ({
-    name: "",
-    rowIndex: index,
-    checked: false,
-  }));
-  private listeners: Listener[] = [];
+  private data: Player[];
+  private subscribers: Subscriber[] = [];
   private db: DataBase;
 
   private constructor(DB: DataBase) {
@@ -26,8 +21,23 @@ export class PlayerListContext {
     if (storedPlayerList) {
       this.data = adaptPlayerListFromLocalStorage(storedPlayerList);
     } else {
+      this.data = this.getInitialData();
       this.publishToDB();
     }
+  }
+
+  private getInitialData(): Player[] {
+    return Array.from({ length: MAX_PLAYERS }, (_, index) => ({
+      name: "",
+      rowIndex: index,
+      checked: false,
+    }));
+  }
+
+  public resetState() {
+    this.data = this.getInitialData();
+    this.propagateChanges();
+    this.subscribers = [];
   }
 
   private propagateChanges() {
@@ -50,7 +60,12 @@ export class PlayerListContext {
   }
 
   public setPlayerList(playerList: Player[]) {
-    this.data = playerList;
+    const playerCount = playerList.length;
+    for (let i = 0; i < MAX_PLAYERS; i++) {
+      if (i < playerCount) {
+        this.data[i] = playerList[i];
+      }
+    }
     this.propagateChanges();
   }
 
@@ -68,7 +83,7 @@ export class PlayerListContext {
     if (player === undefined) {
       return null;
     }
-    return this.data[player.rowIndex];
+    return player;
   }
 
   public playerList(): Player[] {
@@ -76,12 +91,23 @@ export class PlayerListContext {
   }
 
   // naive pub-sub
-  public subscribe(listener: Listener) {
-    this.listeners.push(listener);
+  public subscribe(subscriber: Subscriber) {
+    this.subscribers.push(subscriber);
+  }
+
+  public unsubscribe(name: string) {
+    this.subscribers = this.subscribers.filter(
+      (subscriber: Subscriber): boolean => subscriber.name !== name
+    );
   }
 
   private notififyListeners() {
-    this.listeners.forEach((listener) => listener());
+    this.subscribers.forEach((subscriber: Subscriber) => subscriber.listener());
+  }
+
+  // This method is really only for testing
+  public getSubscribers() {
+    return this.subscribers;
   }
 }
 

@@ -1,13 +1,11 @@
-export const generatePlayerRows = (count: number): string => {
+import { PlayerRow } from "../../src/components/playerRow/player-row";
+import { Player } from "../../src/types/player";
+import { getRowId } from "../../src/utils/dom-helpers";
+
+export const generatePlayerRows = (players: Player[]): string => {
   let body = "";
-  for (let i = 0; i < count; i++) {
-    body += `
-        <td>${i}</td>
-        <td>
-          <input type="checkbox" id="player${i}_cb" title="Check to include in camera view.">
-        </td>
-        <input id="player${i}_name" type="text" />
-      `;
-  }
+  players.forEach((player: Player) => {
+    body += `<tr id=${getRowId(player.rowIndex)} >${PlayerRow(player)}</tr>`;
+  });
   return body;
 };

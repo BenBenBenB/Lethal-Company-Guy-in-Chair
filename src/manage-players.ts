@@ -1,72 +1,66 @@
-import { HOTKEYS } from "./constants/hotkeys";
-import { MAX_PLAYERS } from "./constants/settings";
+import { PlayerRow } from "./components/playerRow/player-row";
 import playerListContext, { type PlayerListContext } from "./context/player";
-import DB from "./db/db";
-import { DataBase } from "./types/db";
 import { HotKeys } from "./types/hotkeys";
 import { Player } from "./types/player";
+import { Subscriber } from "./types/subscriber";
 import {
   getCheckboxId,
   getHotkeyId,
   getNameFieldId,
+  getRowId,
   saveToClipboard,
   toggleAllCheckboxes,
+  toggleTableHeaderCheckbox,
 } from "./utils/dom-helpers";
 
-const setPlayerList = (
-  playerList: Player[],
-  playerListContext: PlayerListContext
-) => {
-  playerList.forEach((player: Player) => {
-    const textbox = <HTMLInputElement>(
-      document.getElementById(getNameFieldId(player.rowIndex))
+const updateRowDataAfterRefresh = (playerListContext: PlayerListContext) => {
+  const list = <HTMLTableElement>document.getElementById("player_table_body");
+  playerListContext.playerList().forEach((player: Player) => {
+    const row = <HTMLTableRowElement>(
+      list.querySelector(`#${getRowId(player.rowIndex)}`)
     );
-    const checkbox = <HTMLInputElement>(
-      document.getElementById(getCheckboxId(player.rowIndex))
-    );
-    textbox.value = player.name || "";
-    checkbox.checked = player.checked;
+    row.innerHTML = PlayerRow(player);
   });
-
-  playerListContext.setPlayerList(playerList);
 };
 
-const createPlayerRow = (
-  player: Player,
-  DB: DataBase,
-  playerListContext: PlayerListContext
-): HTMLTableRowElement => {
-  const { hotkey, rowIndex } = player;
+const createPlayerRow = (player: Player): HTMLTableRowElement => {
   const row = document.createElement("tr");
-  row.innerHTML = `
-            <td>${rowIndex + 1}.</td>
-            <td><input type="checkbox" id="${getCheckboxId(
-              rowIndex
-            )}" title="Check to include in camera view." checked=${
-    player.checked
-  }></td>
-            <td><input type="text" id="${getNameFieldId(rowIndex)}"></td>
-            <td><input id="${getHotkeyId(
-              rowIndex
-            )}" title="Hotkey for swapping to this player." value=${
-    hotkey ?? (HOTKEYS[rowIndex] || "")
-  }></td>
-        `;
+  row.id = getRowId(player.rowIndex);
+  row.innerHTML = PlayerRow(player);
+
+  return row;
+};
+
+const setUpList = (playerListContext: PlayerListContext) => {
+  const list = <HTMLTableElement>document.getElementById("player_table_body");
+  const playerList = playerListContext.playerList();
+  playerList.forEach((player: Player) => {
+    const row = createPlayerRow(player);
+    list.appendChild(row);
+    setupRow(row, player, playerListContext);
+  });
+};
+
+const setupRow = (
+  row: HTMLTableRowElement,
+  player: Player,
+  playerListContext: PlayerListContext
+) => {
   const checkbox = <HTMLInputElement>(
-    row.querySelector(`#${getCheckboxId(rowIndex)}`)
+    row.querySelector(`#${getCheckboxId(player.rowIndex)}`)
   );
   const textbox = <HTMLInputElement>(
-    row.querySelector(`#${getNameFieldId(rowIndex)}`)
+    row.querySelector(`#${getNameFieldId(player.rowIndex)}`)
   );
   const hotkeyTextBox = <HTMLInputElement>(
-    row.querySelector(`#${getHotkeyId(rowIndex)}`)
+    row.querySelector(`#${getHotkeyId(player.rowIndex)}`)
   );
-
   checkbox.addEventListener("change", () => {
     playerListContext.set({
       ...player,
       checked: checkbox.checked,
     });
+    toggleTableHeaderCheckbox(playerListContext);
   });
   textbox.addEventListener("keyup", (event: KeyboardEvent) => {
     const name = (<HTMLInputElement>event.target).value;
@@ -83,36 +77,9 @@ const createPlayerRow = (
       hotkey: (<HTMLInputElement>event.target).value as HotKeys,
     });
   });
-
-  return row;
 };
 
-const setUpList = async (
-  DB: DataBase,
-  playerListContext: PlayerListContext
-) => {
-  const list = <HTMLTableElement>document.getElementById("player_table_body");
-  const playerList = playerListContext.playerList();
-  playerList.forEach((player: Player) =>
-    list.appendChild(createPlayerRow(player, DB, playerListContext))
-  );
-
-  // Finish setting other rows up
-  for (let i = playerList.length; i < MAX_PLAYERS; i++) {
-    list.appendChild(
-      createPlayerRow(
-        { name: "", rowIndex: i, checked: false },
-        DB,
-        playerListContext
-      )
-    );
-  }
-
-  setPlayerList(playerList, playerListContext);
-  await saveToClipboard(playerListContext);
-};
-
-const setUpButtons = (DB: DataBase, playerListContext: PlayerListContext) => {
+const setUpButtons = (playerListContext: PlayerListContext) => {
   (<HTMLInputElement>document.getElementById("cb_toggle_all")).addEventListener(
     "click",
     (event: MouseEvent) => {
@@ -122,42 +89,53 @@ const setUpButtons = (DB: DataBase, playerListContext: PlayerListContext) => {
       );
     }
   );
+
   (<HTMLButtonElement>(
     document.getElementById("btn_clear_names")
-  )).addEventListener("click", () =>
-    setPlayerList(
-      Array(MAX_PLAYERS).fill((index: number) => ({
-        name: "",
-        rowIndex: index,
-      })),
-      playerListContext
-    )
-  );
+  )).addEventListener("click", () => {
+    playerListContext.resetState();
+    updateRowDataAfterRefresh(playerListContext);
+  });
+
   (<HTMLButtonElement>document.getElementById("btn_copy_to")).addEventListener(
     "click",
     () => saveToClipboard(playerListContext)
   );
 };
 
-const main = (db: DataBase, playerListContext: PlayerListContext) => {
-  playerListContext.subscribe(() => saveToClipboard(playerListContext));
+const initSubscriptions = (playerContext: PlayerListContext) => {
+  const subscribers = [
+    {
+      name: saveToClipboard.name,
+      listener: () => saveToClipboard(playerContext),
+    },
+  ];
 
-  document.addEventListener("DOMContentLoaded", async () => {
-    await setUpList(db, playerListContext);
-    setUpButtons(db, playerListContext);
+  subscribers.forEach((subscriber: Subscriber) =>
+    playerListContext.subscribe(subscriber)
+  );
+};
+
+const main = (playerListContext: PlayerListContext) => {
+  initSubscriptions(playerListContext);
+
+  document.addEventListener("DOMContentLoaded", () => {
+    setUpList(playerListContext);
+    setUpButtons(playerListContext);
   });
 };
 
-main(DB, playerListContext);
+main(playerListContext);
 
 export {
   createPlayerRow,
   getCheckboxId,
   getNameFieldId,
+  initSubscriptions,
   main,
   saveToClipboard,
-  setPlayerList,
   setUpButtons,
   setUpList,
+  setupRow,
   toggleAllCheckboxes,
 };

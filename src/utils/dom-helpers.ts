@@ -4,6 +4,7 @@ import { PlayerListContext } from "../context/player";
 import { DataBase } from "../types/db";
 import { Player } from "../types/player";
 
+export const getRowId = (index: number): string => `player${index}_row`;
 export const getNameFieldId = (index: number): string => `player${index}_name`;
 export const getCheckboxId = (index: number): string => `player${index}_cb`;
 export const getHotkeyId = (index: number): string => `player${index}_hk`;
@@ -22,11 +23,10 @@ export const saveToClipboard = async (playerListContext: PlayerListContext) => {
   await navigator.clipboard.writeText(textToSave);
 };
 
-export const toggleAllCheckboxes = async (
+export const toggleAllCheckboxes = (
   check: boolean,
   playerListContext: PlayerListContext
-): Promise<void> => {
-  console.log("here");
+) => {
   const updatedPlayerList = playerListContext
     .playerList()
     .map((player: Player): Player => {
@@ -45,6 +45,18 @@ export const toggleAllCheckboxes = async (
     });
 
   playerListContext.setPlayerList(updatedPlayerList);
+};
+
+export const toggleTableHeaderCheckbox = (playerContext: PlayerListContext) => {
+  const tableHeaderCheckbox = <HTMLInputElement>(
+    document.getElementById("cb_toggle_all")
+  );
+  const shouldBeChecked = playerContext
+    .playerList()
+    .filter((player: Player): boolean => player.name !== "")
+    .map((player: Player): boolean => player.checked)
+    .reduce((isChecked: boolean, checked: boolean) => isChecked && checked);
+  tableHeaderCheckbox.checked = shouldBeChecked;
 };
 
 export const fetchHotkeyById = (index: number, DB: DataBase): string =>
