@@ -14,10 +14,10 @@ export const saveToClipboard = async (playerListContext: PlayerListContext) => {
     .playerList()
     .map(
       (player: Player) =>
-        player.name &&
-        (player.checked ? player.name : `${IGNORE_PREFIX}${player.name}`)
+        player.name
+          ? `${player.checked ? "" : IGNORE_PREFIX}${player.name}`
+          : ""
     )
-    .filter(Boolean)
     .join("\n");
 
   await navigator.clipboard.writeText(textToSave);
