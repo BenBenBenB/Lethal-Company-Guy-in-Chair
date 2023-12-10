@@ -1,16 +1,9 @@
 #Requires AutoHotkey v2.0
 #MaxThreads 1
 /*
-For use in Lethal Company. Allows for fast switching between players in the terminal.
+For use in Lethal Company. Allows for fast switching between players and radars in the terminal.
+Also allows user to ping and flash from the terminal.
 Reads list of players from the clipboard. Intended for use with a companion UI.
-
-Hot keys
-    = and middle mouse button will toggle the map view on and off in the terminal
-    Several ways to cycle through players:
-        [ and ]
-        The side mouse buttons
-        Scroll wheel left and right
-    F5-F8 will jump to the first 4 players, respectively.
 */
 
 ; Global vars
@@ -23,8 +16,27 @@ SendCommand(command)
 {
 	Send command
 	Send "{Enter}"
-    sleep 50
-    return
+    sleep 100
+}
+
+CommandPlayerByName(command, name)
+{
+    cleanName := RemovePrefixFromName(name)
+    if (cleanName != "") {
+        SendCommand(command . " " . cleanName)
+    }
+}
+
+CommandPlayerByIndex(command, index)
+{
+    global curr_player_index
+    try {
+        players := GetPlayers()
+        CommandPlayerByName(command, players[index])
+        if (command == "switch") {
+            curr_player_index := index
+        }
+    }
 }
 
 AllowCycleToPlayer(name)
@@ -32,24 +44,11 @@ AllowCycleToPlayer(name)
     return name != "" and !RegExMatch(name, "^IGNOREDPLAYER:")
 }
 
-AllowJumpToPlayer(name)
-{
-    return name != ""
-}
-
 RemovePrefixFromName(name)
 {
     return RegExMatch(name, "^IGNOREDPLAYER:")
-    ? SubStr(name, 15)
-    : name
-}
-
-SwitchToPlayer(name)
-{
-    name := Trim(name)
-    if AllowJumpToPlayer(name) {
-        SendCommand("switch " . RemovePrefixFromName(name))
-    }
+    ? Trim(SubStr(name, 15))
+    : Trim(name)
 }
 
 SwitchToIndex(index)
@@ -57,7 +56,7 @@ SwitchToIndex(index)
     global curr_player_index
     players := GetPlayers()
     try {
-        SwitchToPlayer(players[index])
+        CommandPlayerByName("switch", players[index])
         curr_player_index := index
     }
 }
@@ -85,22 +84,19 @@ GetPlayers()
 GetNextIndex(index, players)
 {
     new_index := index + 1
-    if (new_index > players.length) {
-        new_index := 1
-    }
-    return new_index
+    return (new_index > players.length)
+        ? new_index := 1
+        : new_index
 }
 
 GetNextPlayer()
 {
     global curr_player_index
-    search_count := 1
 
     players := GetPlayers()
     new_index := GetNextIndex(curr_player_index, players)
-    while (!AllowCycleToPlayer(players[new_index]) and search_count < players.length) {
+    while (!AllowCycleToPlayer(players[new_index]) and curr_player_index != new_index) {
         new_index := GetNextIndex(new_index, players)
-        search_count += 1
     }
     if curr_player_index == new_index {
         return ""
@@ -114,22 +110,19 @@ GetNextPlayer()
 GetPrevIndex(index, players)
 {
     new_index := index - 1
-    if (new_index == 0) {
-        new_index := players.length
-    }
-    return new_index
+    return (new_index == 0)
+        ? new_index := players.length
+        : new_index
 }
 
 GetPrevPlayer()
 {
     global curr_player_index
-    search_count := 1
 
     players := GetPlayers()
     new_index := GetPrevIndex(curr_player_index, players)
-    while (!AllowCycleToPlayer(players[new_index]) and search_count < players.length) {
+    while (!AllowCycleToPlayer(players[new_index]) and curr_player_index != new_index) {
         new_index := GetPrevIndex(new_index, players)
-        search_count += 1
     }
     if curr_player_index == new_index {
         return ""
@@ -144,6 +137,11 @@ GetPrevPlayer()
 Hot Keys
 */
 ; toggle map in terminal
+; bespoke input: global hot key - toggle map
+/*
+${toggleMap_global_hotkeys[0]}::
+${toggleMap_global_hotkeys[1]}::
+*/
 $MButton::
 $=::
 {
@@ -151,39 +149,80 @@ $=::
 }
 
 ; cycle to prev player
+; bespoke input: global hot key - cycle prev
+/*
+${cyclePrev_global_hotkeys[0]}::
+${cyclePrev_global_hotkeys[1]}::
+*/
 $[::
 $XButton1::
 $WheelLeft::
 {
-    next_player := GetPrevPlayer()
-    SwitchToPlayer(next_player)
-    return
+    prev_player := GetPrevPlayer()
+    CommandPlayerByName("switch", prev_player)
 }
 
 ; cycle to next player
+; bespoke input: global hot key - cycle next
+/*
+${cycleNext_global_hotkeys[0]}::
+${cycleNext_global_hotkeys[1]}::
+*/
 $]::
 $XButton2::
 $WheelRight::
 {
     next_player := GetNextPlayer()
-    SwitchToPlayer(next_player)
-    return
+    CommandPlayerByName("switch", next_player)
 }
 
-; bind first four players to hotkeys
-$F5::
+; ping current (for radars)
+; bespoke input: global hot key - ping hotkeys
+/*
+${ping_global_hotkeys[0]}::
+${ping_global_hotkeys[1]}::
+*/
+$P::
 {
-    SwitchToIndex(1)
+    global curr_player_index
+    CommandPlayerByIndex("ping", curr_player_index)
 }
-$F6::
+; flash current (for radars)
+; bespoke input: global hot key - flash hotkeys
+/*
+${flash_global_hotkeys[0]}::
+${flash_global_hotkeys[1]}::
+*/
+$O::
 {
-    SwitchToIndex(2)
+    global curr_player_index
+    CommandPlayerByIndex("flash", curr_player_index)
 }
-$F7::
+
+; bind hotkeys for specific radars and players - switch, ping, and flash
+; bespoke input: each row of table, 'view switch' column hotkeys
+/*
+${view_hotkeys[0]}::
+${view_hotkeys[1]}::
 {
-    SwitchToIndex(3)
+    CommandPlayerByIndex("switch", {index})
 }
-$F8::
+*/
+
+; bespoke input: each row of table, 'ping' column hotkeys
+/*
+${ping_hotkeys[0]}::
+${ping_hotkeys[1]}::
 {
-    SwitchToIndex(4)
+    CommandPlayerByIndex("ping", {index})
 }
+*/
+
+; bespoke input: each row of table, 'flash' column hotkeys
+/*
+${flash_hotkeys[0]}::
+${flash_hotkeys[1]}::
+{
+    CommandPlayerByIndex("flash", {index})
+}
+*/
