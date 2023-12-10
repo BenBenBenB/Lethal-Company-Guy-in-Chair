@@ -20,7 +20,7 @@ export const saveToClipboard = async (playerListContext: PlayerListContext) => {
     )
     .join("\n");
 
-  await navigator.clipboard.writeText(textToSave);
+  await navigator.clipboard.writeText(textToSave.trimEnd());
 };
 
 export const toggleAllCheckboxes = (

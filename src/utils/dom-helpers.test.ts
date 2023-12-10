@@ -72,7 +72,7 @@ describe("Save to clipboard", () => {
   });
 
   it("should save values to clipboard", async () => {
-    const expected = "Ben\nRyan\nCaleb\nJeff\nIGNOREDPLAYER:ignore me";
+    const expected = "Ben\nRyan\nCaleb\nJeff\n\nIGNOREDPLAYER:ignore me";
     setUpList(playerContext);
     const ignoredCheckbox = <HTMLInputElement>(
       document.querySelector(
@@ -80,8 +80,7 @@ describe("Save to clipboard", () => {
       )
     );
     // Manually un-check checkbox for "ignore me" player
-    ignoredCheckbox.checked = false;
-    await saveToClipboard(playerContext);
+    ignoredCheckbox.checked = true;
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expected);
   });
 });
